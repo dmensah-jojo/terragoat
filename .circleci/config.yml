@@ -12,11 +12,19 @@ jobs:
           name: Download cortexcli
           command: |
             set -x
-            crtx_resp=$(curl "${CORTEX_API_URL}/public_api/v1/get_cli_download_url" \
+            crtx_resp=$(curl -f "${CORTEX_API_URL}/public_api/v1/get_cli_download_url" \
               -H "x-xdr-auth-id: ${CORTEX_API_KEY_ID}" \
               -H "Authorization: ${CORTEX_API_KEY}")
-            crtx_url=$(echo $crtx_resp | jq -r ".signed_url")
-            curl -o cortexcli $crtx_url
+            if ! echo "$crtx_resp" | jq -e . > /dev/null 2>&1; then
+              echo "Error: API response is not valid JSON: $crtx_resp"
+              exit 1
+            fi
+            crtx_url=$(echo "$crtx_resp" | jq -r ".signed_url")
+            if [ -z "$crtx_url" ] || [ "$crtx_url" = "null" ]; then
+              echo "Error: Could not extract signed_url from response: $crtx_resp"
+              exit 1
+            fi
+            curl -f -o cortexcli "$crtx_url"
             chmod +x cortexcli
             ./cortexcli --version
       - run:
