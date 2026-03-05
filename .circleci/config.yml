@@ -12,16 +12,22 @@ jobs:
           name: Download cortexcli
           command: |
             set -x
-            crtx_resp=$(curl -f "${CORTEX_API_URL}/public_api/v1/get_cli_download_url" \
+            crtx_resp=$(curl -s -w "\n%{http_code}" "${CORTEX_API_URL}/public_api/v1/get_cli_download_url" \
               -H "x-xdr-auth-id: ${CORTEX_API_KEY_ID}" \
               -H "Authorization: ${CORTEX_API_KEY}")
-            if ! echo "$crtx_resp" | jq -e . > /dev/null 2>&1; then
-              echo "Error: API response is not valid JSON: $crtx_resp"
+            crtx_http_code=$(echo "$crtx_resp" | tail -n1)
+            crtx_body=$(echo "$crtx_resp" | sed '$d')
+            if [ "$crtx_http_code" != "200" ]; then
+              echo "Error: API returned HTTP $crtx_http_code: $crtx_body"
               exit 1
             fi
-            crtx_url=$(echo "$crtx_resp" | jq -r ".signed_url")
+            if ! echo "$crtx_body" | jq -e . > /dev/null 2>&1; then
+              echo "Error: API response is not valid JSON: $crtx_body"
+              exit 1
+            fi
+            crtx_url=$(echo "$crtx_body" | jq -r ".signed_url")
             if [ -z "$crtx_url" ] || [ "$crtx_url" = "null" ]; then
-              echo "Error: Could not extract signed_url from response: $crtx_resp"
+              echo "Error: Could not extract signed_url from response: $crtx_body"
               exit 1
             fi
             curl -f -o cortexcli "$crtx_url"
